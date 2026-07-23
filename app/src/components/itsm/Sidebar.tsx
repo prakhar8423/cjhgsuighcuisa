@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { BookOpen, LayoutDashboard, LifeBuoy, Package, Ticket, TrendingUp } from 'lucide-react'
+import { Award, BookOpen, LayoutDashboard, LifeBuoy, Package, Ticket, TrendingUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { AGENTS } from '@/lib/itsm/seed-static'

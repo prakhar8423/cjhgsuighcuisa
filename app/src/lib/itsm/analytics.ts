@@ -118,3 +118,50 @@ export function withinRange(tickets: Ticket[], days: number): Ticket[] {
   const cutoff = subDays(new Date(), days).getTime()
   return tickets.filter((t) => new Date(t.createdAt).getTime() >= cutoff)
 }
+
+export interface AgentPerformance {
+  id: string
+  name: string
+  avatarInitials: string
+  role: 'agent' | 'lead'
+  resolved: number
+  openCount: number
+  avgResolutionMins: number
+  slaCompliance: number
+  score: number
+}
+
+// Composite performance score (0-100): SLA compliance weighted heaviest,
+// then resolution volume (relative to the top performer) and speed.
+export function agentPerformance(
+  tickets: Ticket[],
+  agents: { id: string; name: string; avatarInitials: string; role: 'agent' | 'lead' }[],
+  now: number,
+): AgentPerformance[] {
+  const rows = agents.map((a) => {
+    const assigned = tickets.filter((t) => t.assigneeId === a.id)
+    const resolvedTickets = assigned.filter((t) => t.resolvedAt)
+    return {
+      id: a.id,
+      name: a.name,
+      avatarInitials: a.avatarInitials,
+      role: a.role,
+      resolved: resolvedTickets.length,
+      openCount: assigned.filter((t) => isOpen(t)).length,
+      avgResolutionMins: avgResolutionMins(resolvedTickets),
+      slaCompliance: slaComplianceRate(resolvedTickets, now),
+    }
+  })
+
+  const maxResolved = Math.max(1, ...rows.map((r) => r.resolved))
+  const maxAvg = Math.max(1, ...rows.map((r) => r.avgResolutionMins))
+
+  return rows
+    .map((r) => {
+      const volumeScore = (r.resolved / maxResolved) * 100
+      const speedScore = r.avgResolutionMins === 0 ? 0 : (1 - r.avgResolutionMins / maxAvg) * 100
+      const score = Math.round(r.slaCompliance * 0.5 + volumeScore * 0.3 + speedScore * 0.2)
+      return { ...r, score }
+    })
+    .sort((x, y) => y.score - x.score)
+}

@@ -10,6 +10,7 @@ import Catalog from '@/routes/itsm/Catalog'
 import Knowledge from '@/routes/itsm/Knowledge'
 import ArticleDetail from '@/routes/itsm/ArticleDetail'
 import Reports from '@/routes/itsm/Reports'
+import TopAgents from '@/routes/itsm/TopAgents'
 import { AppLayout } from '@/components/itsm/AppLayout'
 import { CreateTicketDialog } from '@/components/itsm/CreateTicketDialog'
 import { useApplyTheme } from '@/lib/itsm/use-theme'
@@ -47,6 +48,7 @@ export default function App() {
         <Route path="/knowledge" element={<Shell><Knowledge /></Shell>} />
         <Route path="/knowledge/:id" element={<Shell><ArticleDetail /></Shell>} />
         <Route path="/reports" element={<Shell><Reports /></Shell>} />
+        <Route path="/top-agents" element={<Shell><TopAgents /></Shell>} />
         <Route
           path="*"
           element={
