@@ -6,6 +6,10 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  LabelList,
+  PolarAngleAxis,
+  RadialBar,
+  RadialBarChart,
   ResponsiveContainer,
   Tooltip as RTooltip,
   XAxis,
@@ -25,6 +29,14 @@ import {
 } from '@/lib/itsm/analytics'
 import { formatDuration } from '@/lib/itsm/sla'
 import { CURRENT_AGENT_ID } from '@/lib/itsm/types'
+import {
+  AXIS_TICK,
+  ChartCard,
+  ChartLegend,
+  ChartTooltip,
+  CURSOR_FILL,
+  GRID_STROKE,
+} from '@/components/itsm/charts/chart-kit'
 
 const RANGES = [
   { value: 7, label: '7 days' },
@@ -32,13 +44,8 @@ const RANGES = [
   { value: 90, label: '90 days' },
 ] as const
 
-const TOOLTIP_STYLE = {
-  background: 'var(--popover)',
-  border: '1px solid var(--border)',
-  borderRadius: '0.375rem',
-  fontSize: '12px',
-  color: 'var(--popover-foreground)',
-}
+const COMPLIANCE_GOOD = 90
+const COMPLIANCE_WARN = 75
 
 export default function Reports() {
   const tickets = useTickets()
@@ -56,6 +63,13 @@ export default function Reports() {
     [ranged, categories],
   )
   const byAgent = useMemo(() => workloadByAgent(tickets, agents), [tickets, agents])
+  const resolvedCount = useMemo(() => ranged.filter((t) => t.resolvedAt).length, [ranged])
+  const complianceColor =
+    compliance >= COMPLIANCE_GOOD
+      ? 'var(--chart-1)'
+      : compliance >= COMPLIANCE_WARN
+        ? 'var(--chart-4)'
+        : 'var(--destructive)'
 
   const notEnough = ranged.length === 0
 
@@ -89,73 +103,102 @@ export default function Reports() {
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-3">
-            <Stat label="SLA compliance" value={`${compliance}%`} hint="of resolved tickets met their SLA" />
             <Stat label="Avg. resolution time" value={avgMins ? formatDuration(avgMins * 60_000) : '—'} hint="from creation to resolution" />
             <Stat label="Tickets in range" value={String(ranged.length)} hint={`created in the last ${days} days`} />
+            <Stat label="Resolved in range" value={String(resolvedCount)} hint="closed within the window" />
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-2">
-            <section className="rounded-lg border bg-card p-5">
-              <h2 className="mb-4 font-heading text-base font-semibold">Open vs resolved</h2>
-              <ResponsiveContainer width="100%" height={260}>
-                <AreaChart data={trend} margin={{ left: -20, right: 8, top: 8 }}>
+          <div className="grid gap-6 lg:grid-cols-[1fr_1.6fr]">
+            <ChartCard title="SLA compliance" description={`Resolved within target · last ${days} days`}>
+              <div className="relative mx-auto grid place-items-center">
+                <ResponsiveContainer width={200} height={200}>
+                  <RadialBarChart
+                    data={[{ name: 'SLA', value: compliance, fill: complianceColor }]}
+                    startAngle={90}
+                    endAngle={-270}
+                    innerRadius={72}
+                    outerRadius={96}
+                  >
+                    <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
+                    <RadialBar dataKey="value" cornerRadius={12} background={{ fill: CURSOR_FILL }} />
+                  </RadialBarChart>
+                </ResponsiveContainer>
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="font-heading text-4xl font-semibold tabular-nums">{compliance}%</span>
+                  <span className="text-xs text-muted-foreground">within SLA</span>
+                </div>
+              </div>
+            </ChartCard>
+
+            <ChartCard
+              title="Open vs resolved"
+              description="Ticket flow over the selected range"
+              legend={<ChartLegend items={[{ label: 'Created', color: 'var(--chart-2)' }, { label: 'Resolved', color: 'var(--chart-1)' }]} />}
+            >
+              <ResponsiveContainer width="100%" height={220}>
+                <AreaChart data={trend} margin={{ left: -18, right: 8, top: 8 }}>
                   <defs>
                     <linearGradient id="g-created" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--chart-2)" stopOpacity={0.3} />
+                      <stop offset="0%" stopColor="var(--chart-2)" stopOpacity={0.28} />
                       <stop offset="100%" stopColor="var(--chart-2)" stopOpacity={0} />
                     </linearGradient>
                     <linearGradient id="g-resolved" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.3} />
+                      <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.28} />
                       <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                  <YAxis tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} allowDecimals={false} />
-                  <RTooltip contentStyle={TOOLTIP_STYLE} />
-                  <Area type="monotone" dataKey="created" name="Created" stroke="var(--chart-2)" fill="url(#g-created)" strokeWidth={2} />
-                  <Area type="monotone" dataKey="resolved" name="Resolved" stroke="var(--chart-1)" fill="url(#g-resolved)" strokeWidth={2} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
+                  <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={false} minTickGap={28} />
+                  <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} allowDecimals={false} width={28} />
+                  <RTooltip content={<ChartTooltip />} />
+                  <Area type="monotone" dataKey="created" name="Created" stroke="var(--chart-2)" fill="url(#g-created)" strokeWidth={2} activeDot={{ r: 4 }} />
+                  <Area type="monotone" dataKey="resolved" name="Resolved" stroke="var(--chart-1)" fill="url(#g-resolved)" strokeWidth={2} activeDot={{ r: 4 }} />
                 </AreaChart>
               </ResponsiveContainer>
-            </section>
-
-            <section className="rounded-lg border bg-card p-5">
-              <h2 className="mb-4 font-heading text-base font-semibold">Volume by category</h2>
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={byCategory} layout="vertical" margin={{ left: 40, right: 12 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} allowDecimals={false} />
-                  <YAxis type="category" dataKey="category" tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} width={100} />
-                  <RTooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'var(--muted)' }} />
-                  <Bar dataKey="count" name="Tickets" radius={[0, 4, 4, 0]} fill="var(--chart-1)" />
-                </BarChart>
-              </ResponsiveContainer>
-            </section>
+            </ChartCard>
           </div>
 
-          <section className="rounded-lg border bg-card p-5">
-            <h2 className="mb-4 font-heading text-base font-semibold">Volume by agent (all-time open)</h2>
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={byAgent} margin={{ left: -20, right: 8, top: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                <XAxis
-                  dataKey="name"
-                  tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(v: string, i: number) => (byAgent[i]?.id === CURRENT_AGENT_ID ? 'You' : v.split(' ')[0])}
-                  interval={0}
-                />
-                <YAxis tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} allowDecimals={false} />
-                <RTooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'var(--muted)' }} />
-                <Bar dataKey="openCount" name="Open" radius={[4, 4, 0, 0]}>
-                  {byAgent.map((_, i) => (
-                    <Cell key={i} fill={`var(--chart-${(i % 5) + 1})`} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </section>
+          <div className="grid gap-6 lg:grid-cols-2">
+            <ChartCard title="Volume by category" description="Where tickets come from">
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={byCategory} layout="vertical" margin={{ left: 8, right: 24, top: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} horizontal={false} />
+                  <XAxis type="number" tick={AXIS_TICK} tickLine={false} axisLine={false} allowDecimals={false} />
+                  <YAxis type="category" dataKey="category" tick={AXIS_TICK} tickLine={false} axisLine={false} width={110} />
+                  <RTooltip content={<ChartTooltip />} cursor={{ fill: CURSOR_FILL }} />
+                  <Bar dataKey="count" name="Tickets" radius={[0, 6, 6, 0]} maxBarSize={26}>
+                    <LabelList dataKey="count" position="right" className="fill-muted-foreground" fontSize={11} />
+                    {byCategory.map((_, i) => (
+                      <Cell key={i} fill={`var(--chart-${(i % 5) + 1})`} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+
+            <ChartCard title="Volume by agent" description="Open tickets currently assigned">
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={byAgent} margin={{ left: -18, right: 8, top: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v: string, i: number) => (byAgent[i]?.id === CURRENT_AGENT_ID ? 'You' : v.split(' ')[0])}
+                    interval={0}
+                  />
+                  <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} allowDecimals={false} width={28} />
+                  <RTooltip content={<ChartTooltip />} cursor={{ fill: CURSOR_FILL }} />
+                  <Bar dataKey="openCount" name="Open" radius={[6, 6, 0, 0]} maxBarSize={40}>
+                    {byAgent.map((_, i) => (
+                      <Cell key={i} fill={`var(--chart-${(i % 5) + 1})`} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+          </div>
         </>
       )}
     </div>

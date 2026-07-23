@@ -2,12 +2,14 @@ import { useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { formatDistanceToNow } from 'date-fns'
 import {
+  Area,
+  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
-  Line,
-  LineChart,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip as RTooltip,
   XAxis,
@@ -31,6 +33,14 @@ import {
 import { PRIORITY_META } from '@/lib/itsm/meta'
 import { CURRENT_AGENT_ID } from '@/lib/itsm/types'
 import { requesterById } from '@/data'
+import {
+  AXIS_TICK,
+  ChartCard,
+  ChartLegend,
+  ChartTooltip,
+  CURSOR_FILL,
+  GRID_STROKE,
+} from '@/components/itsm/charts/chart-kit'
 
 const TREND_DAYS = 14
 const RECENT_LIMIT = 6
@@ -45,6 +55,11 @@ export default function Dashboard() {
   const kpis = useMemo(() => computeKpis(tickets, now), [tickets, now])
   const byStatus = useMemo(() => countByStatus(tickets), [tickets])
   const byPriority = useMemo(() => countByPriority(tickets), [tickets])
+  const priorityPie = useMemo(
+    () => byPriority.filter((p) => p.count > 0).map((p) => ({ ...p, label: PRIORITY_META[p.priority].label, fill: PRIORITY_META[p.priority].fill })),
+    [byPriority],
+  )
+  const openTotal = useMemo(() => byPriority.reduce((s, p) => s + p.count, 0), [byPriority])
   const trend = useMemo(() => resolutionTrend(tickets, TREND_DAYS), [tickets])
   const workload = useMemo(() => workloadByAgent(tickets, agents), [tickets, agents])
   const recent = useMemo(
@@ -106,67 +121,78 @@ export default function Dashboard() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <section className="rounded-lg border bg-card p-5 lg:col-span-2">
-          <h2 className="font-heading text-base font-semibold">Resolution trend</h2>
-          <p className="mb-4 text-sm text-muted-foreground">Created vs resolved over the last {TREND_DAYS} days.</p>
+        <ChartCard
+          title="Resolution trend"
+          description={`Created vs resolved over the last ${TREND_DAYS} days`}
+          className="lg:col-span-2"
+          legend={<ChartLegend items={[{ label: 'Created', color: 'var(--chart-2)' }, { label: 'Resolved', color: 'var(--chart-1)' }]} />}
+        >
           <ResponsiveContainer width="100%" height={240}>
-            <LineChart data={trend} margin={{ left: -20, right: 8, top: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-              <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} allowDecimals={false} />
-              <RTooltip contentStyle={TOOLTIP_STYLE} />
-              <Line type="monotone" dataKey="created" name="Created" stroke="var(--chart-2)" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="resolved" name="Resolved" stroke="var(--chart-1)" strokeWidth={2} dot={false} />
-            </LineChart>
+            <AreaChart data={trend} margin={{ left: -18, right: 8, top: 8 }}>
+              <defs>
+                <linearGradient id="d-created" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--chart-2)" stopOpacity={0.28} />
+                  <stop offset="100%" stopColor="var(--chart-2)" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="d-resolved" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.28} />
+                  <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
+              <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={false} minTickGap={24} />
+              <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} allowDecimals={false} width={28} />
+              <RTooltip content={<ChartTooltip />} />
+              <Area type="monotone" dataKey="created" name="Created" stroke="var(--chart-2)" strokeWidth={2} fill="url(#d-created)" activeDot={{ r: 4 }} />
+              <Area type="monotone" dataKey="resolved" name="Resolved" stroke="var(--chart-1)" strokeWidth={2} fill="url(#d-resolved)" activeDot={{ r: 4 }} />
+            </AreaChart>
           </ResponsiveContainer>
-        </section>
+        </ChartCard>
 
-        <section className="rounded-lg border bg-card p-5">
-          <h2 className="font-heading text-base font-semibold">Open by priority</h2>
-          <p className="mb-4 text-sm text-muted-foreground">Active tickets awaiting work.</p>
-          <div className="space-y-3">
-            {byPriority.map(({ priority, count }) => {
-              const total = byPriority.reduce((s, p) => s + p.count, 0) || 1
-              return (
-                <div key={priority} className="space-y-1.5">
-                  <div className="flex items-center justify-between text-sm">
-                    <span>{PRIORITY_META[priority].label}</span>
-                    <span className="tabular-nums text-muted-foreground">{count}</span>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full transition-all"
-                      style={{ width: `${(count / total) * 100}%`, backgroundColor: PRIORITY_META[priority].fill }}
-                    />
-                  </div>
-                </div>
-              )
-            })}
+        <ChartCard title="Open by priority" description="Active tickets awaiting work">
+          <div className="flex items-center gap-5">
+            <div className="relative shrink-0">
+              <ResponsiveContainer width={140} height={140}>
+                <PieChart>
+                  <Pie data={priorityPie} dataKey="count" nameKey="label" innerRadius={44} outerRadius={64} paddingAngle={2} strokeWidth={0}>
+                    {priorityPie.map((d) => <Cell key={d.priority} fill={d.fill} />)}
+                  </Pie>
+                  <RTooltip content={<ChartTooltip />} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                <span className="font-heading text-2xl font-semibold tabular-nums">{openTotal}</span>
+                <span className="text-[11px] text-muted-foreground">open</span>
+              </div>
+            </div>
+            <ChartLegend
+              className="flex-col items-start gap-2"
+              items={byPriority.map((p) => ({ label: PRIORITY_META[p.priority].label, color: PRIORITY_META[p.priority].fill, value: p.count }))}
+            />
           </div>
-        </section>
+        </ChartCard>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <section className="rounded-lg border bg-card p-5">
-          <h2 className="font-heading text-base font-semibold">Queue by status</h2>
+        <ChartCard title="Queue by status" description="Tickets across the workflow">
           <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={byStatus} margin={{ left: -20, right: 8, top: 12 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+            <BarChart data={byStatus} margin={{ left: -18, right: 8, top: 12 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} vertical={false} />
               <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} interval={0} />
-              <YAxis tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} allowDecimals={false} />
-              <RTooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'var(--muted)' }} />
-              <Bar dataKey="count" name="Tickets" radius={[4, 4, 0, 0]}>
+              <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} allowDecimals={false} width={28} />
+              <RTooltip content={<ChartTooltip />} cursor={{ fill: CURSOR_FILL }} />
+              <Bar dataKey="count" name="Tickets" radius={[6, 6, 0, 0]} maxBarSize={44}>
                 {byStatus.map((d) => (
                   <Cell key={d.status} fill={d.fill} />
                 ))}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
-        </section>
+        </ChartCard>
 
-        <section className="rounded-lg border bg-card p-5">
-          <h2 className="font-heading text-base font-semibold">Agent workload</h2>
-          <p className="mb-4 text-sm text-muted-foreground">Open tickets per agent.</p>
+        <section className="flex flex-col rounded-xl border bg-card p-5">
+          <h2 className="mb-1 font-heading text-base font-semibold">Agent workload</h2>
+          <p className="mb-4 text-sm text-muted-foreground">Open tickets per agent</p>
           <ul className="space-y-3">
             {workload.map((a) => (
               <li key={a.id} className="flex items-center gap-3">
@@ -185,7 +211,7 @@ export default function Dashboard() {
           </ul>
         </section>
 
-        <section className="rounded-lg border bg-card p-5">
+        <section className="flex flex-col rounded-xl border bg-card p-5">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="font-heading text-base font-semibold">Recent activity</h2>
             <Button asChild variant="ghost" size="sm"><Link to="/incidents">View all</Link></Button>
@@ -214,10 +240,3 @@ export default function Dashboard() {
   )
 }
 
-const TOOLTIP_STYLE = {
-  background: 'var(--popover)',
-  border: '1px solid var(--border)',
-  borderRadius: '0.375rem',
-  fontSize: '12px',
-  color: 'var(--popover-foreground)',
-}
