@@ -10,8 +10,8 @@ const NAV = [
   { to: '/incidents', label: 'Incidents', icon: Ticket, end: false },
   { to: '/catalog', label: 'Service Catalog', icon: Package, end: false },
   { to: '/knowledge', label: 'Knowledge Base', icon: BookOpen, end: false },
-  { to: '/reports', label: 'SLA & Reports', icon: TrendingUp, end: false },
-  { to: '/slas', label: 'SLA Policies', icon: ShieldCheck, end: false },
+  { to: '/reports', label: 'Reports', icon: TrendingUp, end: false },
+  { to: '/slas', label: 'SLA', icon: ShieldCheck, end: false },
   { to: '/top-agents', label: 'Top Agents', icon: Award, end: false },
 ] as const
 

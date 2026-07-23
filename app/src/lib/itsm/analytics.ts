@@ -119,6 +119,50 @@ export function withinRange(tickets: Ticket[], days: number): Ticket[] {
   return tickets.filter((t) => new Date(t.createdAt).getTime() >= cutoff)
 }
 
+export interface SlaStateCount {
+  state: import('./types').SlaState
+  count: number
+}
+
+// Live SLA state breakdown across currently-open tickets.
+export function slaStateBreakdown(tickets: Ticket[], now: number): SlaStateCount[] {
+  const order = ['on_track', 'at_risk', 'breached'] as const
+  return order.map((state) => ({
+    state,
+    count: tickets.filter((t) => isOpen(t) && slaOf(t, now).state === state).length,
+  }))
+}
+
+export interface AtRiskTicket {
+  ticket: Ticket
+  info: ReturnType<typeof slaOf>
+}
+
+// Open tickets that are at risk or already breached, most urgent first.
+export function atRiskTickets(tickets: Ticket[], now: number): AtRiskTicket[] {
+  return tickets
+    .filter((t) => isOpen(t))
+    .map((ticket) => ({ ticket, info: slaOf(ticket, now) }))
+    .filter(({ info }) => info.state === 'at_risk' || info.state === 'breached')
+    .sort((a, b) => a.info.remainingMs - b.info.remainingMs)
+}
+
+// SLA compliance per policy, based on resolved tickets on each policy.
+export function complianceByPolicy(
+  tickets: Ticket[],
+  policies: { id: string; name: string; priority: Priority; responseMins: number; resolutionMins: number }[],
+  now: number,
+) {
+  return policies.map((p) => {
+    const onPolicy = tickets.filter((t) => t.slaPolicyId === p.id && t.resolvedAt)
+    return {
+      ...p,
+      resolved: onPolicy.length,
+      compliance: slaComplianceRate(onPolicy, now),
+    }
+  })
+}
+
 export interface AgentPerformance {
   id: string
   name: string
