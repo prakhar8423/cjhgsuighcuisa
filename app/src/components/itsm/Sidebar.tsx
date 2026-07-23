@@ -11,6 +11,7 @@ const NAV = [
   { to: '/catalog', label: 'Service Catalog', icon: Package, end: false },
   { to: '/knowledge', label: 'Knowledge Base', icon: BookOpen, end: false },
   { to: '/reports', label: 'SLA & Reports', icon: TrendingUp, end: false },
+  { to: '/top-agents', label: 'Top Agents', icon: Award, end: false },
 ] as const
 
 const me = AGENTS.find((a) => a.id === CURRENT_AGENT_ID)!
