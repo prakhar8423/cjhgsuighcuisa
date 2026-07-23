@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { Award, BookOpen, LayoutDashboard, LifeBuoy, Package, Ticket, TrendingUp } from 'lucide-react'
+import { Award, BookOpen, LayoutDashboard, LifeBuoy, Package, ShieldCheck, Ticket, TrendingUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { AGENTS } from '@/lib/itsm/seed-static'
@@ -11,6 +11,7 @@ const NAV = [
   { to: '/catalog', label: 'Service Catalog', icon: Package, end: false },
   { to: '/knowledge', label: 'Knowledge Base', icon: BookOpen, end: false },
   { to: '/reports', label: 'SLA & Reports', icon: TrendingUp, end: false },
+  { to: '/slas', label: 'SLA Policies', icon: ShieldCheck, end: false },
   { to: '/top-agents', label: 'Top Agents', icon: Award, end: false },
 ] as const
 
