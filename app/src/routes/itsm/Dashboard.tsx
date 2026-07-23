@@ -61,7 +61,7 @@ export default function Dashboard() {
   )
   const openTotal = useMemo(() => byPriority.reduce((s, p) => s + p.count, 0), [byPriority])
   const trend = useMemo(() => resolutionTrend(tickets, TREND_DAYS), [tickets])
-  const workload = useMemo(() => workloadByAgent(tickets, agents), [tickets, agents])
+  const workload = useMemo(() => workloadByAgent(tickets, agents).slice(1), [tickets, agents])
   const recent = useMemo(
     () => [...tickets].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, RECENT_LIMIT),
     [tickets],
